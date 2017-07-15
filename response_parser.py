@@ -10,7 +10,27 @@ TIME = "Time: "
 KWH_USAGE = "kWh Usage: "
 APPROX_COST = "Approx. Cost: $"
 TEMP_HIGH = "Daily High Temp: "
-HOURLY_TEMP = "Hourly Temp:  "
+HOURLY_TEMP = "Hourly Temp: "
+
+
+class UsageData(object):
+
+    def __init__(self, raw_data_string):
+        parsed_data_string = raw_data_string.split('{br}')
+        self.date = _parse_date(parsed_data_string[0])
+        self.time = None
+        if self.date is None:
+            self.time = _parse_time(parsed_data_string[0])
+        self.kwh = _parse_kwh_usage(parsed_data_string[1])
+        self.approx_cost = _parse_approx_cost(parsed_data_string[2])
+        self.top_temp = _parse_temp(parsed_data_string[3])
+
+    def __repr__(self):
+        return ' '.join([str(self.date),
+                         str(self.time),
+                         str(self.kwh)+"kwh",
+                         '$'+ str(self.approx_cost),
+                         str(self.top_temp)+"F"])
 
 
 def _parse_number(raw_input_string, field_name_str):
@@ -26,10 +46,19 @@ def _parse_number(raw_input_string, field_name_str):
     return value
 
 def _parse_time(raw_date_string):
-    _, _, date_string = raw_date_string.partition(DAY_DATE)
-    date_string = date_string.strip()
-    date_string = date_string.replace(',', '')
-    date_string = date_string.replace('.', '')
+    """
+    Sample: Time: 3:00PM to 4:00PM
+
+    :param raw_date_string: The raw string for the time
+    :return: time object with time
+    """
+    # Returns tuple ("before", "separator", "after"), if not found ("original string", "","")
+    _, _, time_str = raw_date_string.partition(TIME)
+    if time_str:
+        time_str = time_str.split()[0]
+        from datetime import datetime
+        time_obj = datetime.strptime(time_str, '%I:%M%p').time()
+        return time_obj
 
 
 def _parse_date(raw_date_string):
@@ -40,8 +69,8 @@ def _parse_date(raw_date_string):
 
     if date_string:
         from datetime import datetime
-        datetime_obj = datetime.strptime(date_string, '%b %d %Y')
-        return datetime_obj
+        date_obj = datetime.strptime(date_string, '%b %d %Y').date()
+        return date_obj
 
 def _parse_kwh_usage(raw_kwh_string):
     return _parse_number(raw_kwh_string, KWH_USAGE)
@@ -50,24 +79,10 @@ def _parse_approx_cost(raw_ac_string):
     return _parse_number(raw_ac_string, APPROX_COST)
 
 def _parse_temp(raw_temp_string):
-    return _parse_number(raw_temp_string, TEMP_HIGH)
-
-class UsageData(object):
-
-    def __init__(self, raw_data_string):
-        parsed_data_string = raw_data_string.split('{br}')
-        self.date_time = _parse_date(parsed_data_string[0])
-        self.kwh = _parse_kwh_usage(parsed_data_string[1])
-        self.approx_cost = _parse_approx_cost(parsed_data_string[2])
-        self.top_temp = _parse_temp(parsed_data_string[3])
-
-    def __repr__(self):
-        return ' '.join([str(self.date_time.date()),
-                         str(self.date_time.time()),
-                         str(self.kwh)+"kwh",
-                         '$'+ str(self.approx_cost),
-                         str(self.top_temp)+"F"])
-
+    temp = _parse_number(raw_temp_string, TEMP_HIGH)
+    if temp == -1:
+        temp = _parse_number(raw_temp_string, HOURLY_TEMP)
+    return temp
 
 def parse_daily_usage(raw_response):
     from lxml import html
@@ -101,3 +116,8 @@ if __name__ == "__main__":
     data_range = parse_daily_usage(SAMPLE_RESPONSE)
     for data_point in data_range:
         print data_point
+
+    data_range = parse_hourly_usage(SAMPLE_HOURLY_RESPONSE)
+    for data_point in data_range:
+        print data_point
+

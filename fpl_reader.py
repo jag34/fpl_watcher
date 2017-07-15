@@ -34,60 +34,15 @@ base_query = { 'premiseNumber' : '',
 'tempType' : 'max',
 'viewType' : 'dollar',
 'ecDayHumType' : 'NoHum',
+'ecmonthHumType':'NoHum',
 'ecHasMoveInRate' : 'true',
 'ecMoveInRateVal' : '',
-'lastAvailableIeeDate' : '20170705'}
-
-query_params = { 'premiseNumber' : '183732653',
-'startDate' : '20170623',
-'endDate' : '20170705',
-'accountNumber' : '0574925590',
-'accountType' : 'null',
-'zipCode' : '32905',
-'consumption' : '0.0',
-'usage' : '0.0',
-'isMultiMeter' : 'false',
-'lastAvailableDate' : '2017/07/05',
-'isAmiMeter' : 'true',
-'userType' : 'EXT',
-'currentReading' : '57379',
-'isResidential' : 'true',
-'isTouUser' : 'false',
-'showGroupData' : 'false',
-'isNetMeter' : 'false',
-'certifiedDate' : '2017/06/23',
-'userId' : '',
-'acctNetMeter' : 'false',
-'tempType' : 'max',
-'viewType' : 'dollar',
-'ecDayHumType' : 'NoHum',
-'ecHasMoveInRate' : 'true',
-'ecMoveInRateVal' : '',
-'lastAvailableIeeDate' : '20170705'}
-
-query_params_2 = { 'premiseNumber':'743019753',
-'startDate':'20170101',
-'endDate':'20170201',
-'isAmiMeter':'true',
-'accountNumber':'5720511046',
-'accountType':'residential',
-'zipCode':'32904',
-'consumption':'0.0',
-'usage':'0.0',
-'isMultiMeter':'false',
-'lastAvailableDate':'2017/06/23',
-'userType':'EXT',
-'currentReading':'',
-'certifiedDate':'2014/05/31',
-'userId':'',
-'isResidential':'true',
-'acctNetMeter':'false',
-'tempType':'max',
-'viewType':'dollar',
-'ecDayHumType':'NoHum',
-'ecHasMoveInRate':'false',
-'ecMoveInRateVal':'',
-'lastAvailableIeeDate':'20170623' }
+'lastAvailableIeeDate' : '',
+'dailyStartDate':'20170623',
+'dailyEndDate':'20170713',
+'dailyUsage':'',
+'ecShowMinTab':'true'
+}
 
 DAILY_CONSUMPTION_URL = 'https://app.fpl.com/wps/PA_ESFPortalWeb/getDailyConsumption.do'
 HOURLY_CONSUMPTION_URL = 'https://app.fpl.com/wps/PA_ESFPortalWeb/getHourlyConsumption.do'
@@ -107,25 +62,14 @@ def validate_date(date, expected):
 
 def make_http_request(**kwargs):
     import requests
-    print kwargs['params']
     r = requests.get(**kwargs)
     return r.content
 
-
-def request_daily_usage(premise_no, start_date, end_date, zip_code, acct_no='', proxy=None):
-    from response_parser import parse_daily_usage
-    #from datetime import datetime
-    #start_date_datetime = datetime.strptime(start_date, START_END_DATE_FORMAT)
-    #end_date_datetime = datetime.strptime(end_date, START_END_DATE_FORMAT)
+def make_fpl_query(url, proxy, **kwargs):
     current_query = base_query
+    current_query.update(kwargs)
 
-    current_query['premiseNumber'] = premise_no
-    current_query['startDate'] = start_date
-    current_query['endDate'] = end_date
-    current_query['zipCode'] = zip_code
-    current_query['accountNumber'] = acct_no
-
-    request_dict = {'url': DAILY_CONSUMPTION_URL,
+    request_dict = {'url': url,
                     'params' : current_query}
 
     if proxy:
@@ -133,18 +77,57 @@ def request_daily_usage(premise_no, start_date, end_date, zip_code, acct_no='', 
         request_dict['verify'] = False
 
     response = make_http_request(**request_dict)
-    data_range = parse_daily_usage(response)
 
+    return response
+
+
+def fpl_request_daily_usage(premise_no, start_date, end_date, zip_code, acct_no, proxy):
+    from response_parser import parse_daily_usage
+
+    response = make_fpl_query(DAILY_CONSUMPTION_URL,
+                              proxy,
+                              premiseNumber = premise_no,
+                              startDate= start_date,
+                              endDate = end_date,
+                              zipCode = zip_code,
+                              accountNumber = acct_no)
+    data_range = parse_daily_usage(response)
     return data_range
+
+#Requests to FPL can only be done ina  per day basis, ranges exceeding one day will return nothing
+def fpl_request_hourly_usage(premise_no, start_date, end_date, zip_code, acct_no, proxy):
+    from response_parser import parse_hourly_usage
+
+    response = make_fpl_query(HOURLY_CONSUMPTION_URL,
+                              proxy,
+                              premiseNumber = premise_no,
+                              startDate= start_date,
+                              endDate = end_date,
+                              zipCode = zip_code,
+                              accountNumner = acct_no)
+    data_range = parse_hourly_usage(response)
+    return data_range
+
+def get_usage(premise_no, start_date, end_date, zip_code, acct_no='', hourly=True):
+    pass
 
 
 if '__main__' == __name__:
-    data_range = request_daily_usage(premise_no='743019753',
-                                     start_date='20170101',
-                                     end_date='20170201',
-                                     zip_code='32904',
-                                     acct_no='5720511046',
-                                     proxy=proxyDict)
+    data_range = fpl_request_daily_usage(premise_no='743019753',
+                                         start_date='20170101',
+                                         end_date='20170201',
+                                         zip_code='32904',
+                                         acct_no='5720511046',
+                                         proxy=proxyDict)
+    for data_point in data_range:
+        print data_point
+
+    data_range = fpl_request_hourly_usage(premise_no='183732653',
+                                          start_date='2017-06-30T00:00:00',
+                                          end_date='2017-06-30T00:00:00',
+                                          zip_code='32905',
+                                          acct_no='5720511046',
+                                          proxy=proxyDict)
 
     for data_point in data_range:
         print data_point
